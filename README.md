@@ -1,45 +1,47 @@
 # Timecoin contracts
 
-Testnet contracts for Timecoin. This is not a mainnet contract system.
+The Timecoin contract machine. The token is Timecoin. The ticker is TIC. The node that applies these calls is <https://github.com/9lordisgod/Timecoin>.
 
-The machine and the vault bytecode run inside [Timecoin](https://github.com/Timechain-HQ/Timecoin). The block rules are in the [book](https://github.com/Timechain-HQ/book).
+Organization node: <https://github.com/Timechain-HQ/Timecoin>
 
-## Account
+A contract account stores bytecode, an ML-DSA-44 capability key, a TIC balance, and integer storage. Only a transaction signed by that capability key can change the account. The machine has no external calls.
 
-A contract account stores:
+```mermaid
+flowchart TD
+    arg{Argument 0}
+    deposit[Call value equals argument 1]
+    credit[Slot 0 and the TIC balance increase]
+    withdraw[Slot 0 covers argument 1 and call value is 0]
+    debit[Slot 0 decreases and the payout is argument 1]
+    fail[Any other argument reverts]
+    arg -->|1| deposit --> credit
+    arg -->|2| withdraw --> debit
+    arg -->|other| fail
+```
 
-- bytecode
-- an ML-DSA-44 capability public key
-- a TIME balance
-- integer storage
-
-Only a transaction signed by that capability key may change the account. The chain does not keep a personal account for the caller.
-
-## Machine
-
-The machine is a stack interpreter with a gas limit of 10,000. It has no external calls. Every node that runs the same code, arguments, call value, and storage reaches the same storage and the same payout.
-
-Opcodes: `PUSH`, `ADD`, `SUB`, `EQ`, `GE`, `ASSERT`, `ARG`, `CALLVALUE`, `SLOAD`, `SSTORE`, `PAYOUT`, `SWAP`, `JUMPI`, `JUMP`, `STOP`.
-
-`SSTORE` costs 5 gas. The other opcodes cost 1. A failed assert, a bad jump, a negative payout, or an empty gas tank reverts the whole transaction.
-
-## Vault
-
-The vault is the first contract.
-
-- Argument 0 selects the action. `1` deposits. `2` withdraws. Anything else reverts.
-- Argument 1 is the amount.
-- Deposit requires the attached call value to equal argument 1. The amount is added to storage slot 0. The payout is 0.
-- Withdrawal requires a call value of 0 and a stored balance at least as large as argument 1. Storage slot 0 decreases by that amount. The payout is argument 1.
-
-The chain checks the same movement against the contract's TIME balance: deposits increase it, payouts decrease it, and it cannot go negative.
-
-## Conservation
-
-For a call, the spent notes, the new notes, the fee, the call value, and the payout satisfy:
+`SSTORE` costs 5 gas. `STOP` costs 0. Every other completed opcode costs 1. The limit is 10,000 gas.
 
 ```text
 inputs = outputs + fee + callvalue - payout
 ```
 
-A deployment may lock input value in the new contract after paying its outputs and fee. The capability key must sign that deployment.
+```bash
+python3 -m unittest tests.test_vm
+python3 -m tcvm.cli charts
+```
+
+![Gas per opcode](docs/charts/opcode-gas.png)
+
+![Vault deposit gas](docs/charts/gas-deposit.png)
+
+![Vault withdraw gas](docs/charts/gas-withdraw.png)
+
+![Deposit stack depth](docs/charts/stack-deposit.png)
+
+![Withdraw stack depth](docs/charts/stack-withdraw.png)
+
+![Slot 0 after a 100-unit deposit and a 40-unit withdraw](docs/charts/storage.png)
+
+![Gas completed before an unknown action reverts](docs/charts/revert.png)
+
+Measured tables are in [docs/charts/README.md](docs/charts/README.md). The block rules are in the [book](https://github.com/Timechain-HQ/book).
